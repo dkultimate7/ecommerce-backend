@@ -82,23 +82,23 @@ function App() {
     }
   }
 
-  // =============== AUTH ===============
-  async function handleAuth(e) {
-    e.preventDefault();
+  async function handleAuth(name, email, password, authMode) {
     try {
       if (authMode === "register") {
         await axios.post(`${API}/api/register`, { name, email, password });
         showToast("Registered successfully! Please login.", "success");
-        setAuthMode("login");
+        return "registered";
       } else {
         const res = await axios.post(`${API}/api/login`, { email, password });
         localStorage.setItem("token", res.data.token);
         setToken(res.data.token);
         setShowAuth(false);
         showToast("Login successful!", "success");
+        return "logged_in";
       }
     } catch (e) {
       showToast(e.response?.data?.error || "Authentication failed", "error");
+      return "error";
     }
   }
 
@@ -206,53 +206,6 @@ function App() {
     );
   };
 
-  const AuthModal = () => {
-    if (!showAuth) return null;
-    return (
-      <div className="modal-overlay" onClick={() => setShowAuth(false)}>
-        <div className="modal-content" onClick={e => e.stopPropagation()}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-            <h2>{authMode === "login" ? "Welcome Back" : "Create Account"}</h2>
-            <button className="btn-icon-only" onClick={() => setShowAuth(false)}><X size={20} /></button>
-          </div>
-          
-          <form onSubmit={handleAuth}>
-            {authMode === "register" && (
-              <div className="form-group">
-                <label>Full Name</label>
-                <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Doe" />
-              </div>
-            )}
-            
-            <div className="form-group">
-              <label>Email Address</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
-            </div>
-            
-            <div className="form-group">
-              <label>Password</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
-            </div>
-
-            <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "1rem" }}>
-              {authMode === "login" ? "Sign In" : "Sign Up"}
-            </button>
-          </form>
-
-          <p style={{ textAlign: "center", marginTop: "1.5rem", color: "var(--text-muted)", fontSize: "0.9rem" }}>
-            {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
-            <span 
-              style={{ color: "var(--primary)", fontWeight: 600, cursor: "pointer" }} 
-              onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
-            >
-              {authMode === "login" ? "Sign up here" : "Log in here"}
-            </span>
-          </p>
-        </div>
-      </div>
-    );
-  };
-
   const CartDrawer = () => {
     if (!isCartOpen) return null;
     return (
@@ -314,7 +267,12 @@ function App() {
   return (
     <div className="app-container">
       <Toast />
-      <AuthModal />
+      {showAuth && (
+        <StandaloneAuthModal 
+          onClose={() => setShowAuth(false)} 
+          onSubmit={handleAuth} 
+        />
+      )}
       <CartDrawer />
 
       <header className="navbar">
@@ -444,6 +402,71 @@ function App() {
         )}
 
       </main>
+    </div>
+  );
+}
+
+// Extracted AuthModal to stop entire App re-rendering on keystrokes
+function StandaloneAuthModal({ onClose, onSubmit }) {
+  const [authMode, setAuthMode] = useState("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const result = await onSubmit(name, email, password, authMode);
+    setIsSubmitting(false);
+    
+    if (result === "registered") {
+      setAuthMode("login");
+      setPassword(""); // clear password for login step
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+          <h2>{authMode === "login" ? "Welcome Back" : "Create Account"}</h2>
+          <button className="btn-icon-only" onClick={onClose}><X size={20} /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit}>
+          {authMode === "register" && (
+            <div className="form-group">
+              <label>Full Name</label>
+              <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Doe" />
+            </div>
+          )}
+          
+          <div className="form-group">
+            <label>Email Address</label>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
+          </div>
+          
+          <div className="form-group">
+            <label>Password</label>
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+
+          <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "1rem", opacity: isSubmitting ? 0.7 : 1 }} disabled={isSubmitting}>
+            {isSubmitting ? "Processing..." : (authMode === "login" ? "Sign In" : "Sign Up")}
+          </button>
+        </form>
+
+        <p style={{ textAlign: "center", marginTop: "1.5rem", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+          {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
+          <span 
+            style={{ color: "var(--primary)", fontWeight: 600, cursor: "pointer" }} 
+            onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
+          >
+            {authMode === "login" ? "Sign up here" : "Log in here"}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
